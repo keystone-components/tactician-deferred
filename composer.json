@@ -1,0 +1,20 @@
+{
+    "name": "keystone/tactician-deferred",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": ">=5.6",
+        "league/tactician": "^1.0",
+        "radish/radish": "^0.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^5.7",
+        "mockery/mockery": "^0.9",
+        "keystone/mockery-callable-mock": "^1.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Keystone\\Tactician\\Deferred\\": "src/"
+        }
+    }
+}
