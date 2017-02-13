@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/keystonephp/tactician-deferred.png)](https://travis-ci.org/keystonephp/tactician-deferred)
 
-A Tactician middleware to allow deferring commands to be handled asynchronously using [Keystone Queue](https://github.com/keystonephp/queue).
+A Tactician middleware to allow commands to be handled asynchronously using [Keystone Queue](https://github.com/keystonephp/queue).
 
 Features:
 

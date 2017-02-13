@@ -1,6 +1,6 @@
 {
     "name": "keystone/tactician-deferred",
-    "description": "A Tactician middleware to allow deferring commands to be handled asynchronously",
+    "description": "A Tactician middleware to allow commands to be handled asynchronously",
     "keywords": ["tactician", "asynchronous", "queue", "deferrable"],
     "type": "library",
     "license": "MIT",
