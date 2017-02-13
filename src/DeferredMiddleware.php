@@ -1,32 +1,39 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace Keystone\Tactician\Deferred;
 
-use Keystone\Tactician\Deferred\Command\DeferrableInterface;
-use Keystone\Tactician\Deferred\Command\RetryableInterface;
-use Keystone\Tactician\Deferred\Serializer\SerializerInterface;
+use Keystone\Queue\Publisher;
+use Keystone\Tactician\Deferred\Command\DeferrableCommand;
+use Keystone\Tactician\Deferred\Command\DeferredCommand;
 use League\Tactician\Middleware;
-use Radish\Broker\Message;
-use Radish\Producer\ProducerInterface;
 
+/**
+ * Command bus middleware that will publish deferrable commands to the queue for processing
+ * asynchronously. Wrapped deferred commands will continue handling by the command bus.
+ */
 class DeferredMiddleware implements Middleware
 {
-    private $serializer;
-    private $producer;
-    private $routingKey;
+    /**
+     * @var Publisher
+     */
+    private $publisher;
 
-    public function __construct(SerializerInterface $serializer, ProducerInterface $producer, $routingKey)
+    /**
+     * @param Publisher $publisher
+     */
+    public function __construct(Publisher $publisher)
     {
-        $this->serializer = $serializer;
-        $this->producer = $producer;
-        $this->routingKey = $routingKey;
+        $this->publisher = $publisher;
     }
 
+    /**
+     * {@inheritdoc}
+     */
     public function execute($command, callable $next)
     {
-        if ($command instanceof DeferrableInterface) {
+        if ($command instanceof DeferrableCommand) {
             // The command should be deferred and pushed to a worker
-            $this->producer->publish($this->createMessage($command));
+            $this->publisher->publish($command);
 
             return;
         }
@@ -37,22 +44,5 @@ class DeferredMiddleware implements Middleware
         }
 
         return $next($command);
-    }
-
-    private function createMessage($command)
-    {
-        $message = new Message();
-        $message->setDeliveryMode(AMQP_DURABLE);
-        $message->setRoutingKey($this->routingKey);
-        $message->setBody($this->serializer->serialize($command));
-        $message->setContentType($this->serializer->getContentType());
-
-        if ($command instanceof RetryableInterface) {
-            $message->setHeader('retry_options', [
-                'max_attempts' => $command->getMaxRetries(),
-            ]);
-        }
-
-        return $message;
     }
 }

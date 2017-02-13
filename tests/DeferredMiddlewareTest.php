@@ -1,124 +1,82 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace Keystone\Tactician\Deferred;
 
-use Keystone\Tactician\Deferred\Command\DeferrableInterface;
-use Keystone\Tactician\Deferred\Command\RetryableInterface;
-use Keystone\Tactician\Deferred\Serializer\SerializerInterface;
-use Keystone\Mockery\CallableMock;
-use League\Tactician\Middleware;
-use Mockery;
-use Radish\Broker\Message;
-use Radish\Producer\ProducerInterface;
+use Keystone\Queue\Publisher\FakePublisher;
+use Keystone\Tactician\Deferred\Command\DeferrableCommand;
+use Keystone\Tactician\Deferred\Command\DeferredCommand;
+use PHPUnit\Framework\TestCase;
 
-class DeferredMiddlewareTest extends \PHPUnit_Framework_TestCase
+class DeferredMiddlewareTest extends TestCase
 {
-    private $serializer;
-    private $producer;
+    private $publisher;
     private $middleware;
-
-    public $nextSpy;
 
     public function setUp()
     {
-        $this->serializer = Mockery::mock(SerializerInterface::class, [
-            'serialize' => null,
-            'getContentType' => null,
-        ]);
-
-        $this->producer = Mockery::mock(ProducerInterface::class, [
-            'publish' => null,
-        ]);
-
-        $this->middleware = new DeferredMiddleware($this->serializer, $this->producer, 'routing_key');
+        $this->publisher = new FakePublisher();
+        $this->middleware = new DeferredMiddleware($this->publisher);
     }
 
-    public function testContinuesForNonDeferrableCommand()
+    public function testPublishesDeferrableCommandToQueue()
     {
-        $command = (object) [];
-        $next = new CallableMock();
-        $next->shouldBeCalled()->with($command)->once();
+        $command = new class() implements DeferrableCommand {
+            public function getKey(): string
+            {
+                return 'test';
+            }
+        };
+
+        $next = $this->createNext();
 
         $this->middleware->execute($command, $next);
+
+        // The next callable should not be called
+        $this->assertNull($next->command);
+
+        // The command should be published as a message to the queue
+        $this->assertSame($command, $this->publisher->getMessages()[0]);
     }
 
-    public function testPublishesTaskMessageWhenCommandIsDeferrable()
+    public function testHandlesWrappedDeferredCommand()
     {
-        $command = new TestCommand();
-        $next = new CallableMock();
+        $command = new class() implements DeferrableCommand {
+            public function getKey(): string
+            {
+                return 'test';
+            }
+        };
 
-        $this->serializer->shouldReceive('serialize')
-            ->with($command)
-            ->andReturn('[]');
+        $deferredCommand = new DeferredCommand($command);
+        $next = $this->createNext();
 
-        $this->serializer->shouldReceive('getContentType')
-            ->andReturn('application/json');
+        $this->middleware->execute($deferredCommand, $next);
 
-        $this->producer->shouldReceive('publish')
-            ->with(Mockery::on(function (Message $message) {
-                $this->assertSame('routing_key', $message->getRoutingKey());
-                $this->assertSame('[]', $message->getBody());
-                $this->assertSame('application/json', $message->getContentType());
+        // The next callable should be called with the inner command
+        $this->assertSame($command, $next->command);
+    }
 
-                return true;
-            }))
-            ->once();
+    public function testHandlesWithNormalCommand()
+    {
+        $command = new class() {
+        };
+        $next = $this->createNext();
 
         $this->middleware->execute($command, $next);
+
+        // The next callable should be called with the command
+        $this->assertSame($command, $next->command);
     }
 
-    public function testPublishesTaskMessageAsRetryableWhenCommandIsRetryable()
+    private function createNext()
     {
-        $command = new RetryableTestCommand();
-        $next = new CallableMock();
+        return new class() {
+            public $command;
 
-        $this->serializer->shouldReceive('serialize')
-            ->with($command)
-            ->andReturn('[]');
-
-        $this->serializer->shouldReceive('getContentType')
-            ->andReturn('application/json');
-
-        $this->producer->shouldReceive('publish')
-            ->with(Mockery::on(function (Message $message) {
-                $this->assertSame(['max_attempts' => 10], $message->getHeader('retry_options'));
-
-                return true;
-            }))
-            ->once();
-
-        $this->middleware->execute($command, $next);
-    }
-
-    public function testDoesNotContinueWhenCommandIsDeferrable()
-    {
-        $command = new TestCommand();
-        $next = new CallableMock();
-        $next->shouldBeCalled()->never();
-
-        $this->middleware->execute($command, $next);
-    }
-
-    public function testUsesInnerCommandForDeferrableCommand()
-    {
-        $innerCommand = new TestCommand();
-        $command = new DeferredCommand($innerCommand);
-
-        $next = new CallableMock();
-        $next->shouldBeCalled()->with($innerCommand)->once();
-
-        $this->middleware->execute($command, $next);
-    }
-}
-
-class TestCommand implements DeferrableInterface
-{
-}
-
-class RetryableTestCommand implements DeferrableInterface, RetryableInterface
-{
-    public function getMaxRetries()
-    {
-        return 10;
+            public function __invoke($command)
+            {
+                $this->command = $command;
+            }
+        };
     }
 }

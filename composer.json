@@ -1,20 +1,26 @@
 {
     "name": "keystone/tactician-deferred",
+    "description": "A Tactician middleware to allow deferring commands to be handled asynchronously",
+    "keywords": ["tactician", "asynchronous", "queue", "deferrable"],
     "type": "library",
     "license": "MIT",
     "require": {
-        "php": ">=5.6",
+        "php": ">=7.0",
         "league/tactician": "^1.0",
-        "radish/radish": "^0.2"
+        "keystone/queue": "dev-master"
     },
     "require-dev": {
         "phpunit/phpunit": "^5.7",
-        "mockery/mockery": "^0.9",
-        "keystone/mockery-callable-mock": "^1.0"
+        "mockery/mockery": "^0.9"
     },
     "autoload": {
         "psr-4": {
             "Keystone\\Tactician\\Deferred\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Keystone\\Tactician\\Deferred\\": "tests/"
         }
     }
 }
